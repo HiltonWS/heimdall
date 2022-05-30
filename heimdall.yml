@@ -1,0 +1,84 @@
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: heimdall-local-config-volume
+  labels:
+    directory: config
+spec:
+  capacity:
+    storage: 500Mi
+  accessModes:
+  - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Delete
+  storageClassName: local
+  local:
+    path: /mnt/sda/heimdall/
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - master-rspi4
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: heimdall-local-config-claim
+spec:
+  storageClassName: local
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 500Mi
+  selector:
+    matchLabels:
+      directory: config
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: heimdall
+  labels:
+    app: heimdall
+spec:
+  selector:
+    matchLabels:
+      app: heimdall
+  template:
+    metadata:
+      labels:
+        app: heimdall
+        name: heimdall
+    spec:
+      containers:
+      - name: heimdall
+        image: linuxserver/heimdall:arm64v8-latest
+        imagePullPolicy: Always
+        volumeMounts:
+        - name: heimdall-local-config-volume
+          mountPath: "/config"
+      volumes:
+      - name: heimdall-local-config-volume
+        persistentVolumeClaim:
+          claimName: heimdall-local-config-claim
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: heimdall
+spec:
+  selector:
+    app: heimdall
+  ports:
+  - port: 88
+    targetPort: 80
+    name: heimdall-home
+  - port: 445
+    targetPort: 443
+    name: heimdall-ssl-home
+  externalIPs:
+  - 10.0.0.100
